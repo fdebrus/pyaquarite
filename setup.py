@@ -2,14 +2,14 @@ from setuptools import setup, find_packages
 
 setup(
     name="pyaquarite",
-    version="0.0.1",
+    version="0.0.2",
     packages=find_packages(),
     install_requires=[
         "aiohttp",
         "google-cloud-firestore",
         "google-auth"
     ],
-    author="Your Name",
+    author="Frederic Debrus",
     description="Aquarite Python API Client",
     url="https://github.com/yourusername/pyaquarite",
     classifiers=[
