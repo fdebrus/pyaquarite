@@ -1,3 +1,3 @@
 # pyaquarite
 
-Python API client for Hayward Aquarite / pool automation.\
+Python API client for Hayward Aquarite / pool automation.
