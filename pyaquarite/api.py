@@ -30,6 +30,25 @@ class AquariteAPI:
             if resp.status != 200:
                 raise RequestError(f"Command failed with status {resp.status}")
             return await resp.json()
+            
+    async def set_value(self, pool_id: str, value_path: str, value):
+        client = self.auth.client
+        doc_ref = client.collection("pools").document(pool_id)
+        data = await asyncio.to_thread(doc_ref.get)
+        pool_data = data.to_dict()
+        def set_in_dict(d, path, value):
+            keys = path.split('.')
+            for key in keys[:-1]:
+                d = d.setdefault(key, {})
+            d[keys[-1]] = value
+        set_in_dict(pool_data, value_path, value)
+        command_data = {
+            "poolId": pool_id,
+            "operation": "WRP",
+            "source": "web",
+            "changes": {value_path: value}
+        }
+        await self.send_command(command_data)
 
     async def close(self):
         await self.session.close()
