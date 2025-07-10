@@ -53,7 +53,7 @@ class AquariteAPI:
     async def send_command(self, data):
         _LOGGER.debug("Sending command with data: %s", data)
         headers = {"Authorization": f"Bearer {self.auth.tokens['idToken']}"}
-        url = f"{HAYWARD_API}/sendPoolCommand"
+        url = f"{HAYWARD_API}sendPoolCommand"
         async with self.session.post(url, json=data, headers=headers) as resp:
             content_type = resp.headers.get("Content-Type", "")
             text = await resp.text()
