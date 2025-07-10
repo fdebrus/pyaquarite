@@ -54,13 +54,21 @@ class AquariteAPI:
             f"{HAYWARD_API}/sendPoolCommand", json=data, headers=headers
         ) as resp:
             _LOGGER.debug("Command response status: %s", resp.status)
+            content_type = resp.headers.get("Content-Type", "")
+            text = await resp.text()
+            _LOGGER.debug("Command response content-type: %s", content_type)
+            _LOGGER.debug("Command response body: %s", text)
             if resp.status != 200:
-                text = await resp.text()
                 _LOGGER.error("Command failed with status %s: %s", resp.status, text)
                 raise RequestError(f"Command failed with status {resp.status}: {text}")
-            result = await resp.json()
-            _LOGGER.debug("Command response JSON: %s", result)
-            return result
+            # Try JSON only if content-type is json
+            if "application/json" in content_type:
+                return json.loads(text)
+            else:
+                _LOGGER.error(
+                    "Expected JSON but got '%s'. Body: %s", content_type, text
+                )
+                raise RequestError(f"Expected JSON but got '{content_type}'. Body: {text}")
 
     def _set_in_dict(self, d, path, value):
         _LOGGER.debug("Setting value in dict. Path: %s, Value: %s", path, value)
