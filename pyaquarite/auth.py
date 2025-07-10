@@ -9,7 +9,6 @@ from google.cloud.firestore_v1 import Client as FirestoreClient
 
 from .exceptions import AuthenticationError
 
-
 class AquariteAuth:
     BASE_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
     TOKEN_URL = "https://securetoken.googleapis.com/v1/token"
@@ -45,6 +44,12 @@ class AquariteAuth:
                 token_uri=self.TOKEN_URL
             )
             self.client = FirestoreClient(project="hayward-europe", credentials=self.credentials)
+
+    async def get_client(self):
+        """Return an authenticated Firestore client (ensure authenticated first)."""
+        if not self.client:
+            await self.authenticate()
+        return self.client
 
     async def close(self):
         await self.session.close()
