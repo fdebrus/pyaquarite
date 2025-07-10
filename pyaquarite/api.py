@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+import json
 from .auth import AquariteAuth
 from .exceptions import RequestError
 
@@ -12,42 +13,57 @@ class AquariteAPI:
 
     async def get_pools(self):
         client = self.auth.client
-        user_dict = (await asyncio.to_thread(client.collection("users").document(self.auth.tokens["localId"]).get)).to_dict()
+        user_dict = (await asyncio.to_thread(
+            client.collection("users").document(self.auth.tokens["localId"]).get)
+        ).to_dict()
         pools = {}
         for pool_id in user_dict.get("pools", []):
-            pool_doc = (await asyncio.to_thread(client.collection("pools").document(pool_id).get)).to_dict()
-            pools[pool_id] = pool_doc.get("form", {}).get("names", [{}])[0].get("name", "Unknown")
+            pool_doc = (await asyncio.to_thread(
+                client.collection("pools").document(pool_id).get)
+            ).to_dict()
+            try:
+                name = pool_doc.get("form", {}).get("names", [{}])[0].get("name", "Unknown")
+            except (KeyError, IndexError):
+                name = pool_doc.get("form", {}).get("name", "Unknown")
+            pools[pool_id] = name
         return pools
 
     async def get_pool_data(self, pool_id: str):
         client = self.auth.client
-        pool_data = (await asyncio.to_thread(client.collection("pools").document(pool_id).get)).to_dict()
+        pool_data = (await asyncio.to_thread(
+            client.collection("pools").document(pool_id).get)
+        ).to_dict()
         return pool_data
 
     async def send_command(self, data):
         headers = {"Authorization": f"Bearer {self.auth.tokens['idToken']}"}
-        async with self.session.post(f"{HAYWARD_API}/sendPoolCommand", json=data, headers=headers) as resp:
+        async with self.session.post(
+            f"{HAYWARD_API}/sendPoolCommand", json=data, headers=headers
+        ) as resp:
             if resp.status != 200:
-                raise RequestError(f"Command failed with status {resp.status}")
+                text = await resp.text()
+                raise RequestError(f"Command failed with status {resp.status}: {text}")
             return await resp.json()
-            
+
+    def _set_in_dict(self, d, path, value):
+        """Set value in nested dict using dot notation path."""
+        keys = path.split('.')
+        for key in keys[:-1]:
+            d = d.setdefault(key, {})
+        d[keys[-1]] = value
+
     async def set_value(self, pool_id: str, value_path: str, value):
-        client = self.auth.client
-        doc_ref = client.collection("pools").document(pool_id)
-        data = await asyncio.to_thread(doc_ref.get)
-        pool_data = data.to_dict()
-        def set_in_dict(d, path, value):
-            keys = path.split('.')
-            for key in keys[:-1]:
-                d = d.setdefault(key, {})
-            d[keys[-1]] = value
-        set_in_dict(pool_data, value_path, value)
+        changes = {}
+        self._set_in_dict(changes, value_path, value)
         command_data = {
             "poolId": pool_id,
             "operation": "WRP",
             "source": "web",
-            "changes": {value_path: value}
+            "changes": json.dumps(changes)
         }
+        pool_data = await self.get_pool_data(pool_id)
+        if pool_data and pool_data.get("wifi"):
+            command_data["gateway"] = pool_data["wifi"]
         await self.send_command(command_data)
 
     async def close(self):
