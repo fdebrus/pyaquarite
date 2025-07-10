@@ -50,25 +50,24 @@ class AquariteAPI:
     async def send_command(self, data):
         _LOGGER.debug("Sending command with data: %s", data)
         headers = {"Authorization": f"Bearer {self.auth.tokens['idToken']}"}
-        async with self.session.post(
-            f"{HAYWARD_API}/sendPoolCommand", json=data, headers=headers
-        ) as resp:
-            _LOGGER.debug("Command response status: %s", resp.status)
+        url = f"{HAYWARD_API}/sendPoolCommand"
+        async with self.session.post(url, json=data, headers=headers) as resp:
             content_type = resp.headers.get("Content-Type", "")
             text = await resp.text()
+            _LOGGER.debug("Command response status: %s", resp.status)
             _LOGGER.debug("Command response content-type: %s", content_type)
             _LOGGER.debug("Command response body: %s", text)
             if resp.status != 200:
-                _LOGGER.error("Command failed with status %s: %s", resp.status, text)
+                _LOGGER.error("Request failed with status %s: %s", resp.status, text)
                 raise RequestError(f"Command failed with status {resp.status}: {text}")
-            # Try JSON only if content-type is json
             if "application/json" in content_type:
                 return json.loads(text)
             else:
+                # LOG the full text of the HTML error!
                 _LOGGER.error(
-                    "Expected JSON but got '%s'. Body: %s", content_type, text
+                    "Unexpected response type: %s. Body: %s", content_type, text
                 )
-                raise RequestError(f"Expected JSON but got '{content_type}'. Body: {text}")
+                raise RequestError(f"Unexpected response type: {content_type}. Body: {text}")
 
     def _set_in_dict(self, d, path, value):
         _LOGGER.debug("Setting value in dict. Path: %s, Value: %s", path, value)
