@@ -2,18 +2,25 @@ import aiohttp
 import asyncio
 import datetime
 import json
+import os
+
 from google.oauth2.credentials import Credentials
 from google.cloud.firestore_v1 import Client as FirestoreClient
+
 from .exceptions import AuthenticationError
+
 
 class AquariteAuth:
     BASE_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
     TOKEN_URL = "https://securetoken.googleapis.com/v1/token"
-    API_KEY = "AIzaSyBLaxiyZ2nS1KgRBqWe-NY4EG7OzG5fKpE"
 
-    def __init__(self, email: str, password: str):
+    def __init__(self, email: str, password: str, api_key: str = None):
         self.email = email
         self.password = password
+        self.api_key = api_key or os.getenv("AQUARITE_API_KEY")
+        if not self.api_key:
+            raise RuntimeError("API Key not provided and AQUARITE_API_KEY environment variable not set")
+
         self.tokens = None
         self.expiry = None
         self.credentials = None
@@ -21,7 +28,7 @@ class AquariteAuth:
         self.session = aiohttp.ClientSession()
 
     async def authenticate(self):
-        url = f"{self.BASE_URL}:signInWithPassword?key={self.API_KEY}"
+        url = f"{self.BASE_URL}:signInWithPassword?key={self.api_key}"
         data = json.dumps({
             "email": self.email,
             "password": self.password,
