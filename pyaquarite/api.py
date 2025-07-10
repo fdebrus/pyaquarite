@@ -52,24 +52,20 @@ class AquariteAPI:
 
     async def send_command(self, data):
         _LOGGER.debug("Sending command with data: %s", data)
-        headers = {"Authorization": f"Bearer {self.auth.tokens['idToken']}"}
-        url = f"{HAYWARD_API}sendPoolCommand"
-        async with self.session.post(url, json=data, headers=headers) as resp:
-            content_type = resp.headers.get("Content-Type", "")
-            text = await resp.text()
-            _LOGGER.debug("Command response status: %s", resp.status)
-            _LOGGER.debug("Command response content-type: %s", content_type)
-            _LOGGER.debug("Command response body: %s", text)
-            if resp.status != 200:
-                _LOGGER.error("Request failed with status %s: %s", resp.status, text)
-                raise RequestError(f"Command failed with status {resp.status}: {text}")
-            if "application/json" in content_type:
-                return json.loads(text)
+        headers = {
+            "Authorization": f"Bearer {self.auth.tokens['idToken']}",
+            "Accept": "application/json"
+        }
+        url = f"{HAYWARD_REST_API}/sendPoolCommand"
+        async with self.aiohttp_session.post(url, json=data, headers=headers) as response:
+            _LOGGER.debug(f"Command response status: {response.status}")
+            if response.status == 200:
+                _LOGGER.debug("Command accepted (HTTP 200).")
+                return
             else:
-                _LOGGER.error(
-                    "Unexpected response type: %s. Body: %s", content_type, text
-                )
-                raise RequestError(f"Unexpected response type: {content_type}. Body: {text}")
+                text = await response.text()
+                _LOGGER.error(f"Command failed with status {response.status}: {text}")
+                raise RequestError(f"Command failed with status {response.status}: {text}")
 
     async def set_value(self, pool_id: str, value_path: str, value: Any) -> None:
         try:
