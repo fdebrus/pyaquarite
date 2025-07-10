@@ -2,6 +2,9 @@ import logging
 import aiohttp
 import asyncio
 import json
+import copy
+from typing import Any
+
 from .auth import AquariteAuth
 from .exceptions import RequestError
 
@@ -63,39 +66,50 @@ class AquariteAPI:
             if "application/json" in content_type:
                 return json.loads(text)
             else:
-                # LOG the full text of the HTML error!
                 _LOGGER.error(
                     "Unexpected response type: %s. Body: %s", content_type, text
                 )
                 raise RequestError(f"Unexpected response type: {content_type}. Body: {text}")
 
-    def _set_in_dict(self, d, path, value):
-        _LOGGER.debug("Setting value in dict. Path: %s, Value: %s", path, value)
-        keys = path.split('.')
-        for key in keys[:-1]:
-            d = d.setdefault(key, {})
-        d[keys[-1]] = value
+    async def set_value(self, pool_id: str, value_path: str, value: Any) -> None:
+        try:
+            # 1. Get latest pool data
+            pool_data = await self.get_pool_data(pool_id)
 
-    async def set_value(self, pool_id: str, value_path: str, value):
-        _LOGGER.debug("Setting value for pool_id: %s, path: %s, value: %s", pool_id, value_path, value)
-        changes = {}
-        self._set_in_dict(changes, value_path, value)
-        _LOGGER.debug("Changes dict prepared: %s", changes)
+            # 2. Find the top-level key (e.g. "light", "filtration")
+            path_parts = value_path.split('.')
+            top_key = path_parts[0]
 
-        command_data = {
-            "poolId": pool_id,
-            "operation": "WRP",
-            "source": "web",
-            "changes": json.dumps(changes)
-        }
+            # 3. Get the full original object to match the app
+            original_obj = copy.deepcopy(pool_data.get(top_key, {}))
+            if not original_obj:
+                raise ValueError(f"No data for key '{top_key}' in pool data.")
 
-        pool_data = await self.get_pool_data(pool_id)
-        if pool_data and pool_data.get("wifi"):
-            command_data["gateway"] = pool_data["wifi"]
-            _LOGGER.debug("Gateway added to command data: %s", pool_data["wifi"])
+            # 4. Set the nested value
+            temp = original_obj
+            for key in path_parts[1:-1]:
+                temp = temp.setdefault(key, {})
+            temp[path_parts[-1]] = value
 
-        _LOGGER.debug("Final command data to send: %s", command_data)
-        await self.send_command(command_data)
+            # 5. Build the changes dict as {top_key: updated_obj}
+            changes_dict = {top_key: original_obj}
+
+            # 6. Construct the full command payload just like the app
+            payload = {
+                "gateway": pool_data.get("wifi"),
+                "poolId": pool_id,
+                "operation": "WRP",
+                "operationId": None,
+                "changes": json.dumps(changes_dict),
+                "pool": None,
+                "source": "web"
+            }
+
+            _LOGGER.debug(f"Setting {value_path} to {value} for pool ID {pool_id} --- {payload}")
+            await self.send_command(payload)
+        except Exception as e:
+            _LOGGER.error(f"Failed to set value for pool ID {pool_id}: {e}")
+            raise
 
     async def close(self):
         _LOGGER.debug("Closing aiohttp session.")
