@@ -24,6 +24,8 @@ jobs:
           pip install build twine
 
       - name: Build package
+        env:
+          AQUARITE_API_KEY: ${{ secrets.AQUARITE_API_KEY }}
         run: |
           python -m build
 
@@ -31,5 +33,6 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          AQUARITE_API_KEY: ${{ secrets.AQUARITE_API_KEY }}
         run: |
           twine upload dist/*
