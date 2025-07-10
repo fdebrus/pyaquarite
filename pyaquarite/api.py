@@ -56,7 +56,7 @@ class AquariteAPI:
             "Authorization": f"Bearer {self.auth.tokens['idToken']}",
             "Accept": "application/json"
         }
-        url = f"{HAYWARD_REST_API}/sendPoolCommand"
+        url = f"{HAYWARD_API}sendPoolCommand"
         async with self.aiohttp_session.post(url, json=data, headers=headers) as response:
             _LOGGER.debug(f"Command response status: {response.status}")
             if response.status == 200:
